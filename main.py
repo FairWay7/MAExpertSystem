@@ -4,7 +4,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import *
 
 # from ui.main_window import MainWindow
-from ui.main_window_1 import MainWindow
+from ui.main_window import MainWindow
 
 
 def main():

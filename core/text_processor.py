@@ -2,7 +2,7 @@ import spacy
 import nltk
 from nltk import pos_tag, ne_chunk
 from nltk.tokenize import sent_tokenize, word_tokenize
-from spacy.lang.ru.examples import sentences
+# from spacy.lang.ru.examples import sentences
 from nltk.corpus import stopwords
 from typing import List, Dict, Tuple
 import re
@@ -10,11 +10,10 @@ import re
 
 class TextProcessor:
     def __init__(self, language="ru"):
-        # Малая предобученная модель
-        # self.nlp = spacy.load("ru_core_news_sm")
-
         self.language = language
-        self.nlp = spacy.load("ru_core_news_lg")
+        # self.nlp = spacy.load("ru_core_news_lg")
+        # self.nlp = spacy.load("ru_core_news_sm")
+        self._init_spacy()
 
         nltk.download('punkt')
         nltk.download('averaged_perceptron_tagger')
@@ -22,15 +21,26 @@ class TextProcessor:
         nltk.download('words')
         nltk.download('stopwords')
 
+    # Инициализация spaCy
+    def _init_spacy(self):
+        try:
+            if self.language == 'ru':
+                self.nlp = spacy.load("ru_core_news_sm")
+            else:
+                self.nlp = spacy.load("en_core_web_sm")
+        except OSError:
+            # Используем простую обработку если модель не найдена
+            self.nlp = None
+
+    # Извлечение правил из текста
     def extract_rules_from_text(self, text: str, source_info: Dict) -> List[Dict]:
-        """Извлечение правил из текста"""
         rules = []
-        sentences = sent_tokenize(text)
+        sentences = sent_tokenize(text, language="russian")
 
         for sentence in sentences:
             # Поиск условных конструкций
-            if self._is_conditional_sentence(sentence):
-                rule = self._parse_conditional_sentence(sentence, source_info)
+            if self.is_conditional_sentence(sentence):
+                rule = self.parse_conditional_sentence(sentence, source_info)
                 if rule:
                     rules.append(rule)
 
@@ -65,12 +75,12 @@ class TextProcessor:
 
         return facts
 
-    def _is_conditional_sentence(self, sentence: str) -> bool:
+    def is_conditional_sentence(self, sentence: str) -> bool:
         """Проверка, является ли предложение условным"""
         condition_keywords = ['если', 'при условии', 'в случае', 'когда']
         return any(keyword in sentence.lower() for keyword in condition_keywords)
 
-    def _parse_conditional_sentence(self, sentence: str, source_info: Dict) -> Dict:
+    def parse_conditional_sentence(self, sentence: str, source_info: Dict) -> Dict:
         """Разбор условного предложения в правило"""
         # Простой парсер для условных конструкций
         match = re.match(r'(.+?) (то|тогда) (.+)', sentence, re.IGNORECASE)

@@ -6,7 +6,7 @@ import uuid
 
 
 class KnowledgeBase:
-    def __init__(self, domain_name: str):
+    def __init__(self, domain_name):
         self.domain_name = domain_name
         self.rules: Dict[str, Rule] = {}
         self.facts: Dict[str, Fact] = {}
@@ -68,7 +68,7 @@ class KnowledgeBase:
                 if agent_id and (rule1.agent_id != agent_id and rule2.agent_id != agent_id):
                     continue
 
-                similarity = self._calculate_rule_similarity(rule1, rule2)
+                similarity = self.calculate_rule_similarity(rule1, rule2)
                 if similarity > 0.7:  # Порог схожести
                     similar.append((rule1, rule2, similarity))
 
@@ -87,12 +87,12 @@ class KnowledgeBase:
                 if agent_id and (rule1.agent_id != agent_id and rule2.agent_id != agent_id):
                     continue
 
-                if self._are_rules_conflicting(rule1, rule2):
+                if self.are_rules_conflicting(rule1, rule2):
                     conflicting.append((rule1, rule2))
 
         return conflicting
 
-    def _calculate_rule_similarity(self, rule1: Rule, rule2: Rule) -> float:
+    def calculate_rule_similarity(self, rule1: Rule, rule2: Rule) -> float:
         """Вычисление степени схожести правил"""
         # Простая метрика схожести на основе текста
         from difflib import SequenceMatcher
@@ -102,8 +102,8 @@ class KnowledgeBase:
 
         return (cond_sim + action_sim) / 2
 
-    def _are_rules_conflicting(self, rule1: Rule, rule2: Rule) -> bool:
+    def are_rules_conflicting(self, rule1: Rule, rule2: Rule) -> bool:
         """Проверка на конфликтность правил"""
         # Простая проверка: одинаковые условия, но разные действия
-        cond_sim = self._calculate_rule_similarity(rule1, rule2)
+        cond_sim = self.calculate_rule_similarity(rule1, rule2)
         return cond_sim > 0.8 and rule1.action != rule2.action

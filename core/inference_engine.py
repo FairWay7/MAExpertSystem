@@ -16,7 +16,7 @@ class InferenceEngine:
 
         # Добавляем начальные факты
         for fact in working_memory:
-            self._log_step(f"Исходный факт: {fact.variable_name} = {fact.value}")
+            self.log_step(f"Исходный факт: {fact.variable_name} = {fact.value}")
 
         new_facts_added = True
         iteration = 0
@@ -26,17 +26,17 @@ class InferenceEngine:
             iteration += 1
 
             for rule in sorted(self.kb.rules.values(), key=lambda x: x.priority, reverse=True):
-                if self._check_condition(rule.condition, working_memory):
+                if self.check_condition(rule.condition, working_memory):
                     # Правило сработало
                     new_fact = self._execute_action(rule.action, rule.agent_id)
                     if new_fact and not self._fact_exists(new_fact, working_memory):
                         working_memory.append(new_fact)
                         new_facts_added = True
 
-                        self._log_step(f"Сработало правило: {rule.name}")
-                        self._log_step(f"  Условие: {rule.condition}")
-                        self._log_step(f"  Действие: {rule.action}")
-                        self._log_step(f"  Новый факт: {new_fact.variable_name} = {new_fact.value}")
+                        self.log_step(f"Сработало правило: {rule.name}")
+                        self.log_step(f"  Условие: {rule.condition}")
+                        self.log_step(f"  Действие: {rule.action}")
+                        self.log_step(f"  Новый факт: {new_fact.variable_name} = {new_fact.value}")
 
         return working_memory
 
@@ -45,17 +45,17 @@ class InferenceEngine:
         self.explanation_steps = []
         working_memory = working_memory or []
 
-        self._log_step(f"Цель: доказать {goal}")
+        self.log_step(f"Цель: доказать {goal}")
         result = self._prove_goal(goal, working_memory, [])
 
         return result
 
+    # Попытка доказать цель
     def _prove_goal(self, goal: str, working_memory: List[Fact], visited: List) -> Tuple[bool, List]:
-        """Попытка доказать цель"""
         # Проверяем, есть ли факт в рабочей памяти
         for fact in working_memory:
             if fact.variable_name == goal:
-                self._log_step(f"Цель '{goal}' найдена в фактах: {fact.value}")
+                self.log_step(f"Цель '{goal}' найдена в фактах: {fact.value}")
                 return True, working_memory
 
         # Ищем правила, которые могут вывести цель
@@ -65,13 +65,13 @@ class InferenceEngine:
                 relevant_rules.append(rule)
 
         if not relevant_rules:
-            self._log_step(f"Нет правил для вывода цели '{goal}'")
+            self.log_step(f"Нет правил для вывода цели '{goal}'")
             return False, working_memory
 
         # Пробуем каждое правило
         for rule in relevant_rules:
-            self._log_step(f"Пробуем правило: {rule.name}")
-            self._log_step(f"  Действие: {rule.action}")
+            self.log_step(f"Пробуем правило: {rule.name}")
+            self.log_step(f"  Действие: {rule.action}")
 
             # Проверяем условия правила
             conditions = self._extract_conditions(rule.condition)
@@ -87,12 +87,12 @@ class InferenceEngine:
                 # Все условия выполнены, выполняем действие
                 new_fact = self._execute_action(rule.action, rule.agent_id)
                 working_memory.append(new_fact)
-                self._log_step(f"Правило успешно применено, получен факт: {new_fact.variable_name} = {new_fact.value}")
+                self.log_step(f"Правило успешно применено, получен факт: {new_fact.variable_name} = {new_fact.value}")
                 return True, working_memory
 
         return False, working_memory
 
-    def _check_condition(self, condition: str, facts: List[Fact]) -> bool:
+    def check_condition(self, condition: str, facts: List[Fact]) -> bool:
         """Проверка условия правила"""
         # Простая реализация - можно расширить
         try:
@@ -100,6 +100,6 @@ class InferenceEngine:
         except:
             return False
 
-    def _log_step(self, message: str):
+    def log_step(self, message: str):
         """Запись шага вывода"""
         self.explanation_steps.append(message)
