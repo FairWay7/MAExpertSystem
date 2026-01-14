@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 
+
 @dataclass
-class Fact:
+class Variable:
     id: int
-    content: str
+    name: str
     agent_id: int
-    confidence: float
+    value_type: str
+    description: str
     source_file: str
     author: str
     created_at: str

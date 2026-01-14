@@ -1,109 +1,235 @@
-from typing import List, Dict, Any, Set, Tuple
-from models.rule import Rule, RuleType
-from models.fact import Fact
-from datetime import datetime
-import uuid
+from typing import List, Dict, Set
 
 
 class KnowledgeBase:
-    def __init__(self, domain_name):
-        self.domain_name = domain_name
-        self.rules: Dict[str, Rule] = {}
-        self.facts: Dict[str, Fact] = {}
+    """База знаний для хранения и управления правилами и фактами"""
+
+    def __init__(self, name: str = "База знаний"):
+        self.name = name
+        self.rules: Dict[str, Dict] = {}
+        self.facts: Dict[str, Dict] = {}
         self.variables: Set[str] = set()
         self.agents: Dict[str, Dict] = {}
+        self.domains: Dict[str, Dict] = {}
 
-    def add_rule(self, rule_data: Dict) -> Rule:
+    def add_rule(self, rule: Dict) -> str:
         """Добавление правила в базу знаний"""
-        rule_id = str(uuid.uuid4())
-        rule = Rule(
-            id=rule_id,
-            name=rule_data['name'],
-            condition=rule_data['condition'],
-            action=rule_data['action'],
-            rule_type=RuleType(rule_data.get('rule_type', 'condition')),
-            priority=rule_data.get('priority', 1),
-            agent_id=rule_data['agent_id'],
-            source_file=rule_data['source_file'],
-            author=rule_data['author'],
-            created_date=datetime.now(),
-            confidence=rule_data.get('confidence', 1.0),
-            tags=rule_data.get('tags', []),
-            metadata=rule_data.get('metadata', {})
-        )
+        rule_id = rule.get('id')
+        if not rule_id:
+            import uuid
+            rule_id = str(uuid.uuid4())
+            rule['id'] = rule_id
+
+        # Проверяем на дубликаты
+        for existing_rule in self.rules.values():
+            if (existing_rule['condition'] == rule['condition'] and
+                    existing_rule['action'] == rule['action']):
+                return existing_rule['id']
+
         self.rules[rule_id] = rule
-        return rule
 
-    def add_fact(self, fact_data: Dict) -> Fact:
-        """Добавление факта в рабочую память"""
-        fact_id = str(uuid.uuid4())
-        fact = Fact(
-            id=fact_id,
-            variable_name=fact_data['variable_name'],
-            value=fact_data['value'],
-            agent_id=fact_data['agent_id'],
-            source_file=fact_data['source_file'],
-            author=fact_data['author'],
-            created_date=datetime.now(),
-            confidence=fact_data.get('confidence', 1.0)
-        )
+        # Обновляем статистику агента и домена
+        if rule.get('agent_id'):
+            agent_id = rule['agent_id']
+            if agent_id in self.agents:
+                if 'rules_count' not in self.agents[agent_id]:
+                    self.agents[agent_id]['rules_count'] = 0
+                self.agents[agent_id]['rules_count'] += 1
+
+        if rule.get('domain_id'):
+            domain_id = rule['domain_id']
+            if domain_id in self.domains:
+                if 'rules_count' not in self.domains[domain_id]:
+                    self.domains[domain_id]['rules_count'] = 0
+                self.domains[domain_id]['rules_count'] += 1
+
+        return rule_id
+
+    def add_fact(self, fact: Dict) -> str:
+        """Добавление факта в базу знаний"""
+        fact_id = fact.get('id')
+        if not fact_id:
+            import uuid
+            fact_id = str(uuid.uuid4())
+            fact['id'] = fact_id
+
         self.facts[fact_id] = fact
-        self.variables.add(fact.variable_name)
-        return fact
+        self.variables.add(fact['variable_name'])
 
-    def get_rules_by_agent(self, agent_id: str) -> List[Rule]:
-        """Получение правил конкретного агента"""
-        return [rule for rule in self.rules.values() if rule.agent_id == agent_id]
+        # Обновляем статистику
+        if fact.get('agent_id'):
+            agent_id = fact['agent_id']
+            if agent_id in self.agents:
+                if 'facts_count' not in self.agents[agent_id]:
+                    self.agents[agent_id]['facts_count'] = 0
+                self.agents[agent_id]['facts_count'] += 1
 
-    def find_similar_rules(self, agent_id: str = None) -> List[Tuple[Rule, Rule]]:
+        if fact.get('domain_id'):
+            domain_id = fact['domain_id']
+            if domain_id in self.domains:
+                if 'facts_count' not in self.domains[domain_id]:
+                    self.domains[domain_id]['facts_count'] = 0
+                self.domains[domain_id]['facts_count'] += 1
+
+        return fact_id
+
+    def add_agent(self, agent: Dict) -> str:
+        """Добавление агента"""
+        agent_id = agent.get('id')
+        if not agent_id:
+            import uuid
+            agent_id = f"agent_{uuid.uuid4().hex[:8]}"
+            agent['id'] = agent_id
+
+        self.agents[agent_id] = agent
+
+        # Обновляем статистику домена
+        if agent.get('domain_id'):
+            domain_id = agent['domain_id']
+            if domain_id in self.domains:
+                if 'agents_count' not in self.domains[domain_id]:
+                    self.domains[domain_id]['agents_count'] = 0
+                self.domains[domain_id]['agents_count'] += 1
+
+        return agent_id
+
+    def add_domain(self, domain: Dict) -> str:
+        """Добавление предметной области"""
+        domain_id = domain.get('id')
+        if not domain_id:
+            import uuid
+            domain_id = str(uuid.uuid4())
+            domain['id'] = domain_id
+
+        self.domains[domain_id] = domain
+        return domain_id
+
+    def get_rules_by_agent(self, agent_id: str) -> List[Dict]:
+        """Получение правил агента"""
+        return [
+            rule for rule in self.rules.values()
+            if rule.get('agent_id') == agent_id
+        ]
+
+    def get_facts_by_agent(self, agent_id: str) -> List[Dict]:
+        """Получение фактов агента"""
+        return [
+            fact for fact in self.facts.values()
+            if fact.get('agent_id') == agent_id
+        ]
+
+    def get_rules_by_domain(self, domain_id: str) -> List[Dict]:
+        """Получение правил домена"""
+        return [
+            rule for rule in self.rules.values()
+            if rule.get('domain_id') == domain_id
+        ]
+
+    def get_facts_by_domain(self, domain_id: str) -> List[Dict]:
+        """Получение фактов домена"""
+        return [
+            fact for fact in self.facts.values()
+            if fact.get('domain_id') == domain_id
+        ]
+
+    def find_similar_rules(self, agent_id: str = None,
+                           threshold: float = 0.7) -> List[Dict]:
         """Поиск схожих правил"""
-        similar = []
-        rules_list = list(self.rules.values())
+        # Получаем правила для анализа
+        if agent_id:
+            rules = self.get_rules_by_agent(agent_id)
+        else:
+            rules = list(self.rules.values())
 
-        for i in range(len(rules_list)):
-            for j in range(i + 1, len(rules_list)):
-                rule1 = rules_list[i]
-                rule2 = rules_list[j]
+        similar_pairs = []
 
-                if agent_id and (rule1.agent_id != agent_id and rule2.agent_id != agent_id):
-                    continue
+        for i in range(len(rules)):
+            for j in range(i + 1, len(rules)):
+                similarity = self._calculate_similarity(
+                    rules[i]['condition'], rules[j]['condition']
+                )
 
-                similarity = self.calculate_rule_similarity(rule1, rule2)
-                if similarity > 0.7:  # Порог схожести
-                    similar.append((rule1, rule2, similarity))
+                if similarity >= threshold:
+                    similar_pairs.append({
+                        'rule1': rules[i],
+                        'rule2': rules[j],
+                        'similarity': similarity,
+                        'type': self._determine_similarity_type(rules[i], rules[j])
+                    })
 
-        return similar
+        return similar_pairs
 
-    def find_conflicting_rules(self, agent_id: str = None) -> List[Tuple[Rule, Rule]]:
+    def find_conflicting_rules(self, agent_id: str = None) -> List[Dict]:
         """Поиск конфликтных правил"""
-        conflicting = []
-        rules_list = list(self.rules.values())
+        if agent_id:
+            rules = self.get_rules_by_agent(agent_id)
+        else:
+            rules = list(self.rules.values())
 
-        for i in range(len(rules_list)):
-            for j in range(i + 1, len(rules_list)):
-                rule1 = rules_list[i]
-                rule2 = rules_list[j]
+        conflicting_pairs = []
 
-                if agent_id and (rule1.agent_id != agent_id and rule2.agent_id != agent_id):
-                    continue
+        for i in range(len(rules)):
+            for j in range(i + 1, len(rules)):
+                rule1 = rules[i]
+                rule2 = rules[j]
 
-                if self.are_rules_conflicting(rule1, rule2):
-                    conflicting.append((rule1, rule2))
+                # Проверяем схожесть условий
+                condition_sim = self._calculate_similarity(
+                    rule1['condition'], rule2['condition']
+                )
 
-        return conflicting
+                # Если условия схожи, но действия разные - конфликт
+                if condition_sim > 0.8 and rule1['action'] != rule2['action']:
+                    conflicting_pairs.append({
+                        'rule1': rule1,
+                        'rule2': rule2,
+                        'condition_similarity': condition_sim,
+                        'conflict_type': 'different_actions'
+                    })
 
-    def calculate_rule_similarity(self, rule1: Rule, rule2: Rule) -> float:
-        """Вычисление степени схожести правил"""
-        # Простая метрика схожести на основе текста
-        from difflib import SequenceMatcher
+        return conflicting_pairs
 
-        cond_sim = SequenceMatcher(None, rule1.condition, rule2.condition).ratio()
-        action_sim = SequenceMatcher(None, rule1.action, rule2.action).ratio()
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Вычисление схожести текстов"""
+        if not text1 or not text2:
+            return 0.0
 
-        return (cond_sim + action_sim) / 2
+        text1 = text1.lower()
+        text2 = text2.lower()
 
-    def are_rules_conflicting(self, rule1: Rule, rule2: Rule) -> bool:
-        """Проверка на конфликтность правил"""
-        # Простая проверка: одинаковые условия, но разные действия
-        cond_sim = self.calculate_rule_similarity(rule1, rule2)
-        return cond_sim > 0.8 and rule1.action != rule2.action
+        # Разбиваем на слова
+        import re
+        words1 = set(re.findall(r'\b\w+\b', text1))
+        words2 = set(re.findall(r'\b\w+\b', text2))
+
+        if not words1 or not words2:
+            return 0.0
+
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+
+        return len(intersection) / len(union)
+
+    def _determine_similarity_type(self, rule1: Dict, rule2: Dict) -> str:
+        """Определение типа схожести"""
+        cond_sim = self._calculate_similarity(rule1['condition'], rule2['condition'])
+        act_sim = self._calculate_similarity(rule1['action'], rule2['action'])
+
+        if cond_sim > 0.8 and act_sim > 0.8:
+            return 'identical'
+        elif cond_sim > 0.8:
+            return 'same_condition'
+        elif act_sim > 0.8:
+            return 'same_action'
+        else:
+            return 'partial'
+
+    def get_statistics(self) -> Dict:
+        """Получение статистики"""
+        return {
+            'rules': len(self.rules),
+            'facts': len(self.facts),
+            'variables': len(self.variables),
+            'agents': len(self.agents),
+            'domains': len(self.domains)
+        }
