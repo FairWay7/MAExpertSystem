@@ -2,12 +2,13 @@ import sqlite3
 import json
 from datetime import datetime
 from pathlib import Path
-import agent_repository
-import domain_repository
-import fact_repository
-import rule_repository
-import statistics_repository
-from typing import List, Dict
+from typing import List, Dict, Optional
+
+from database.agent_repository import AgentRepository
+from database.domain_repository import DomainRepository
+from database.fact_repository import FactRepository
+from database.rule_repository import RuleRepository
+from database.statistics_repository import StatisticsRepository
 
 
 class DatabaseManager:
@@ -21,6 +22,12 @@ class DatabaseManager:
 
         self.db_path = Path(db_path)
         self._init_database()
+
+        self.agent_repository = AgentRepository(self.db_path)
+        self.domain_repository = DomainRepository(self.db_path)
+        self.rule_repository = RuleRepository(self.db_path)
+        self.fact_repository = FactRepository(self.db_path)
+        self.statistics_repository = StatisticsRepository(self.db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
         """Создание соединения с БД"""
@@ -110,7 +117,6 @@ class DatabaseManager:
 
         print(f"База данных инициализирована: {self.db_path}")
 
-
     # Экспорт/импорт
 
     def export_to_json(self, output_file: str) -> bool:
@@ -170,50 +176,85 @@ class DatabaseManager:
             print(f"Ошибка импорта: {e}")
             return False
 
-    # ===== Поиск =====
+
+
+    def create_agent(self, name: str, domain_id: str = None, description: str = "") -> Optional[Dict]:
+        return self.agent_repository.create_agent(name, domain_id, description)
+
+    def get_agent(self, agent_id: str) -> Optional[Dict]:
+        return self.agent_repository.get_agent(agent_id)
+
+
+
+    def get_agents_by_domain(self, domain_id: str) -> List[Dict]:
+        return self.agent_repository.get_agents_by_domain(domain_id)
+
+    def get_all_agents(self) -> List[Dict]:
+        return self.agent_repository.get_all_agents()
+
+    def create_domain(self, name: str, description: str = "") -> Optional[Dict]:
+        return self.domain_repository.create_domain(name, description)
+
+    def get_all_domains(self) -> List[Dict]:
+        return self.domain_repository.get_all_domains()
+
+    def get_domain(self, domain_id: str) -> Optional[Dict]:
+        return self.domain_repository.get_domain(domain_id)
+
+    def get_domain_by_name(self, name: str) -> Optional[Dict]:
+        return self.domain_repository.get_domain_by_name(name)
+
+
+
+    def save_fact(self, fact_data: Dict) -> Optional[Dict]:
+        return self.fact_repository.save_fact(fact_data)
+
+    def get_fact(self, fact_id: str) -> Optional[Dict]:
+        return self.fact_repository.get_fact(fact_id)
+
+    def get_facts_by_agent(self, agent_id: str) -> List[Dict]:
+        return self.fact_repository.get_facts_by_agent(agent_id)
+
+    def get_facts_by_variable(self, variable_name: str, agent_id: str = None) -> List[Dict]:
+        return self.fact_repository.get_facts_by_variable(variable_name, agent_id)
+
+    def get_all_facts(self) -> List[Dict]:
+        return self.fact_repository.get_all_facts()
+
+
+
+    def save_rule(self, rule_data: Dict) -> Optional[Dict]:
+        return self.rule_repository.save_rule(rule_data)
+
+    def get_rule(self, rule_id: str) -> Optional[Dict]:
+        return self.rule_repository.get_rule(rule_id)
+
+    def get_rules_by_agent(self, agent_id: str) -> List[Dict]:
+        return self.rule_repository.get_rules_by_agent(agent_id)
+
+    def get_rules_by_domain(self, domain_id: str) -> List[Dict]:
+        return self.rule_repository.get_rules_by_domain(domain_id)
+
+    def get_all_rules(self) -> List[Dict]:
+        return self.rule_repository.get_all_rules()
+
+    def update_rule_priority(self, rule_id: str, priority: int) -> bool:
+        return self.rule_repository.update_rule_priority(rule_id, priority)
+
+    def delete_rule(self, rule_id: str) -> bool:
+        return self.rule_repository.delete_rule(rule_id)
+
+    def find_similar_rules(self, agent_id: str = None, threshold: float = 0.7) -> List[Dict]:
+        return self.rule_repository.find_similar_rules(agent_id, threshold)
+
+    def find_conflicting_rules(self, agent_id: str = None) -> List[Dict]:
+        return self.rule_repository.find_conflicting_rules(agent_id)
 
     def search_rules(self, query: str, agent_ids: List[str] = None) -> List[Dict]:
-        """Поиск правил по тексту"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
+        return self.rule_repository.search_rules(query, agent_ids)
 
-            query_lower = f"%{query.lower()}%"
+    def get_statistics(self) -> Dict:
+        return self.statistics_repository.get_statistics()
 
-            if agent_ids:
-                # Создаем строку с placeholders
-                placeholders = ','.join(['?'] * len(agent_ids))
-                sql = f'''
-                SELECT * FROM rules 
-                WHERE (LOWER(condition) LIKE ? OR LOWER(action) LIKE ?) 
-                AND agent_id IN ({placeholders})
-                ORDER BY priority DESC
-                '''
-                params = [query_lower, query_lower] + agent_ids
-            else:
-                sql = '''
-                SELECT * FROM rules 
-                WHERE LOWER(condition) LIKE ? OR LOWER(action) LIKE ? 
-                ORDER BY priority DESC
-                '''
-                params = [query_lower, query_lower]
 
-            cursor.execute(sql, params)
-            rows = cursor.fetchall()
-            conn.close()
-
-            rules = []
-            for row in rows:
-                rule = dict(row)
-                if rule.get('tags'):
-                    try:
-                        rule['tags'] = json.loads(rule['tags'])
-                    except:
-                        rule['tags'] = []
-                rules.append(rule)
-
-            return rules
-
-        except sqlite3.Error as e:
-            print(f"Ошибка поиска правил: {e}")
-            return []
+    __all__ = ['AgentRepository', 'DomainRepository', 'FactRepository', 'RuleRepository', 'StatisticsRepository']

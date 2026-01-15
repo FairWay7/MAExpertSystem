@@ -4,8 +4,18 @@ import uuid
 from typing import Optional, Dict, List
 
 
-class Repository:
-    # CRUD операции для правил
+class RuleRepository:
+
+    def __init__(self, db_path):
+        self.db_path = db_path
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Создание соединения с БД"""
+
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row  # Для доступа по имени столбцов
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
 
     def save_rule(self, rule_data: Dict) -> Optional[Dict]:
         """Сохранение правила"""
@@ -228,8 +238,7 @@ class Repository:
 
     # Анализ правил
 
-    def find_similar_rules(self, agent_id: str = None,
-                           threshold: float = 0.7) -> List[Dict]:
+    def find_similar_rules(self, agent_id: str = None, threshold: float = 0.7) -> List[Dict]:
         """Поиск схожих правил"""
         # Получаем правила для анализа
         if agent_id:
@@ -325,3 +334,49 @@ class Repository:
             return 'same_action'
         else:
             return 'partial'
+
+    def search_rules(self, query: str, agent_ids: List[str] = None) -> List[Dict]:
+        """Поиск правил по тексту"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            query_lower = f"%{query.lower()}%"
+
+            if agent_ids:
+                # Создаем строку с placeholders
+                placeholders = ','.join(['?'] * len(agent_ids))
+                sql = f'''
+                SELECT * FROM rules 
+                WHERE (LOWER(condition) LIKE ? OR LOWER(action) LIKE ?) 
+                AND agent_id IN ({placeholders})
+                ORDER BY priority DESC
+                '''
+                params = [query_lower, query_lower] + agent_ids
+            else:
+                sql = '''
+                SELECT * FROM rules 
+                WHERE LOWER(condition) LIKE ? OR LOWER(action) LIKE ? 
+                ORDER BY priority DESC
+                '''
+                params = [query_lower, query_lower]
+
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            rules = []
+            for row in rows:
+                rule = dict(row)
+                if rule.get('tags'):
+                    try:
+                        rule['tags'] = json.loads(rule['tags'])
+                    except:
+                        rule['tags'] = []
+                rules.append(rule)
+
+            return rules
+
+        except sqlite3.Error as e:
+            print(f"Ошибка поиска правил: {e}")
+            return []
