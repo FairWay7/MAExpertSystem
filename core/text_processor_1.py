@@ -43,7 +43,7 @@ class TextProcessor:
             # Используем простую обработку если модель не найдена
             self.nlp = None
     
-    def extract_rules_from_text(self, text: str, source_info: Dict) -> List[Dict]:
+    def extract_from_text(self, text: str, source_info: Dict) -> List[Dict]:
         """Извлечение правил из текста"""
         rules = []
         
@@ -358,56 +358,3 @@ class TextProcessor:
                 }
         
         return None
-
-
-# Упрощенная версия для тестирования
-class SimpleTextProcessor:
-    """Упрощенный процессор текста без зависимостей"""
-    
-    def __init__(self, language='ru'):
-        self.language = language
-    
-    def extract_rules_from_text(self, text: str, source_info: Dict) -> List[Dict]:
-        """Простое извлечение правил"""
-        import re
-        
-        rules = []
-        sentences = re.split(r'[.!?]+', text)
-        
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
-            
-            # Проверяем паттерны для русского языка
-            if self.language == 'ru':
-                # Паттерн: Если ... то ...
-                match = re.search(r'если\s+(.+?)\s*,\s*то\s+(.+)', sentence, re.IGNORECASE)
-                if match:
-                    rules.append({
-                        'name': f"Правило из {source_info['source_file']}",
-                        'condition': match.group(1).strip(),
-                        'action': match.group(2).strip(),
-                        'rule_type': 'condition',
-                        'priority': 1,
-                        'agent_id': source_info['agent_id'],
-                        'source_file': source_info['source_file'],
-                        'author': source_info['author']
-                    })
-            
-            # Проверяем паттерны для английского языка
-            else:
-                match = re.search(r'if\s+(.+?)\s*,\s*then\s+(.+)', sentence, re.IGNORECASE)
-                if match:
-                    rules.append({
-                        'name': f"Rule from {source_info['source_file']}",
-                        'condition': match.group(1).strip(),
-                        'action': match.group(2).strip(),
-                        'rule_type': 'condition',
-                        'priority': 1,
-                        'agent_id': source_info['agent_id'],
-                        'source_file': source_info['source_file'],
-                        'author': source_info['author']
-                    })
-        
-        return rules

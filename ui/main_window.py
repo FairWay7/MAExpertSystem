@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_manager import DatabaseManager
 from core.text_processor import TextProcessor
+# from core.text_processor_1 import TextProcessor
 
 
 class MainWindow(QMainWindow):
@@ -110,8 +111,10 @@ class MainWindow(QMainWindow):
         # Вкладка 1: Текстовый редактор
         self.text_edit = QTextEdit()
         self.text_edit.setFont(QFont("Arial", 11))
+        # self.text_edit.setPlaceholderText(
+        #     "Введите текст для анализа или загрузите файл...\n\nПример:\nЕсли температура выше 38 градусов, то это лихорадка.\nНормальная температура = 36.6 градусов.\nЕсли давление выше 140/90, то это гипертония.")
         self.text_edit.setPlaceholderText(
-            "Введите текст для анализа или загрузите файл...\n\nПример:\nЕсли температура выше 38 градусов, то это лихорадка.\nНормальная температура = 36.6 градусов.\nЕсли давление выше 140/90, то это гипертония.")
+            "Введите текст для анализа или загрузите файл...")
         self.tab_widget.addTab(self.text_edit, "Текст")
 
         # Вкладка 2: Результаты анализа
@@ -232,6 +235,14 @@ class MainWindow(QMainWindow):
         import_action = QAction('Импорт из JSON', self)
         import_action.triggered.connect(self.import_data)
         kb_menu.addAction(import_action)
+
+        export_action_csv = QAction('Экспорт в CSV', self)
+        export_action_csv.triggered.connect(self.export_data_csv)
+        kb_menu.addAction(export_action_csv)
+
+        import_action_csv = QAction('Импорт из CSV', self)
+        import_action_csv.triggered.connect(self.import_data_csv)
+        kb_menu.addAction(import_action_csv)
 
         # Меню Анализ
         analysis_menu = menubar.addMenu('Анализ')
@@ -468,12 +479,8 @@ class MainWindow(QMainWindow):
     def create_analysis_report(self, structure: Dict, extracted_data: Dict,
                                saved_rules: List, saved_facts: List) -> str:
         """Создание отчета об анализе"""
-        report = "=" * 70 + "\n"
-        report += "ОТЧЕТ ОБ АНАЛИЗЕ ТЕКСТА\n"
-        report += "=" * 70 + "\n\n"
-
         # Статистика текста
-        report += "СТАТИСТИКА ТЕКСТА:\n"
+        report = "СТАТИСТИКА ТЕКСТА:\n"
         report += f"  Символов: {structure['total_chars']}\n"
         report += f"  Слов: {structure['total_words']}\n"
         report += f"  Предложений: {structure['sentences']}\n"
@@ -1314,11 +1321,62 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Ошибка",
                                     "Не удалось экспортировать базу данных")
 
+    def export_data_csv(self):
+        """Экспорт данных в CSV"""
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Экспорт базы данных", "",
+            "CSV файлы (*.csv);;Все файлы (*)"
+        )
+
+        if filename:
+            if not filename.endswith('.json'):
+                filename += '.json'
+
+            success = self.db_manager.export_to_json(filename)
+
+            if success:
+                QMessageBox.information(self, "Успех",
+                                        f"База данных экспортирована в {filename}")
+                self.statusBar().showMessage(f"Экспорт в {filename} выполнен")
+            else:
+                QMessageBox.warning(self, "Ошибка",
+                                    "Не удалось экспортировать базу данных")
+
     def import_data(self):
         """Импорт данных из JSON"""
         filename, _ = QFileDialog.getOpenFileName(
             self, "Импорт базы данных", "",
             "JSON файлы (*.json);;Все файлы (*)"
+        )
+
+        if filename:
+            reply = QMessageBox.question(
+                self, "Подтверждение",
+                "Импортировать базу данных? Существующие данные не будут удалены.",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
+                success = self.db_manager.import_from_json(filename)
+
+                if success:
+                    QMessageBox.information(self, "Успех",
+                                            f"База данных импортирована из {filename}")
+
+                    # Обновляем данные
+                    self.refresh_rules_table()
+                    self.refresh_facts_table()
+
+                    self.statusBar().showMessage(f"Импорт из {filename} выполнен")
+                else:
+                    QMessageBox.warning(self, "Ошибка",
+                                        "Не удалось импортировать базу данных")
+
+    def import_data_csv(self):
+        """Импорт данных из CSV"""
+        filename, _ = QFileDialog.getOpenFileName(
+            self, "Импорт базы данных", "",
+            "CSV файлы (*.csv);;Все файлы (*)"
         )
 
         if filename:
