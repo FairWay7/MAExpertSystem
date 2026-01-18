@@ -11,8 +11,8 @@ from PyQt5.QtGui import *
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_manager import DatabaseManager
-from core.text_processor import TextProcessor
-# from core.text_processor_1 import TextProcessor
+# from core.text_processor import TextProcessor
+from core.text_processor_spacy import TextProcessor
 
 
 class MainWindow(QMainWindow):
@@ -953,7 +953,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("Введите начальные факты (каждый с новой строки):"))
 
         facts_edit = QTextEdit()
-        facts_edit.setPlainText("температура = 39.5\nдавление = 150/95")
+        facts_edit.setPlaceholderText("температура = 39.5\nдавление = 150/95")
         layout.addWidget(facts_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -1037,8 +1037,7 @@ class MainWindow(QMainWindow):
 
     def check_rule_condition(self, condition: str, facts: Dict) -> bool:
         """Проверка условия правила"""
-        # Простая проверка для демонстрации
-        # В реальном приложении нужен полноценный парсер условий
+        # Простая проверка для демонстрации, нужен полноценный парсер условий
 
         try:
             # Заменяем переменные на их значения
@@ -1158,18 +1157,19 @@ class MainWindow(QMainWindow):
 
                 report += "\n"
 
-        report += "\nПЛАН ДОКАЗАТЕЛЬСТВА:\n"
-        report += "-" * 40 + "\n"
 
-        if relevant_rules:
-            report += "1. Выбрать правило с наивысшим приоритетом\n"
-            report += "2. Доказать условия выбранного правила\n"
-            report += "3. Если условия доказаны, цель считается доказанной\n"
-            report += "4. Если условия не доказаны, перейти к следующему правилу\n"
-        else:
-            report += "Невозможно построить план: нет подходящих правил\n"
-
-        report += "\n" + "=" * 70
+        # TODO: Доказательство обратного вывода
+        # report += "\nПЛАН ДОКАЗАТЕЛЬСТВА:\n"
+        # report += "-" * 40 + "\n"
+        # if relevant_rules:
+        #     report += "1. Выбрать правило с наивысшим приоритетом\n"
+        #     report += "2. Доказать условия выбранного правила\n"
+        #     report += "3. Если условия доказаны, цель считается доказанной\n"
+        #     report += "4. Если условия не доказаны, перейти к следующему правилу\n"
+        # else:
+        #     report += "Невозможно построить план: нет подходящих правил\n"
+        #
+        # report += "\n" + "=" * 70
 
         return report
 
@@ -1321,27 +1321,6 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Ошибка",
                                     "Не удалось экспортировать базу данных")
 
-    def export_data_csv(self):
-        """Экспорт данных в CSV"""
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Экспорт базы данных", "",
-            "CSV файлы (*.csv);;Все файлы (*)"
-        )
-
-        if filename:
-            if not filename.endswith('.json'):
-                filename += '.json'
-
-            success = self.db_manager.export_to_json(filename)
-
-            if success:
-                QMessageBox.information(self, "Успех",
-                                        f"База данных экспортирована в {filename}")
-                self.statusBar().showMessage(f"Экспорт в {filename} выполнен")
-            else:
-                QMessageBox.warning(self, "Ошибка",
-                                    "Не удалось экспортировать базу данных")
-
     def import_data(self):
         """Импорт данных из JSON"""
         filename, _ = QFileDialog.getOpenFileName(
@@ -1372,6 +1351,24 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "Ошибка",
                                         "Не удалось импортировать базу данных")
 
+    def export_data_csv(self):
+        """Экспорт данных в CSV"""
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Экспорт базы данных", "",
+            "CSV файлы (*.csv);;Все файлы (*)"
+        )
+
+        if filename:
+            success = self.db_manager.export_to_csv(filename)
+
+            if success:
+                QMessageBox.information(self, "Успех",
+                                        f"База данных экспортирована в {filename}")
+                self.statusBar().showMessage(f"Экспорт в {filename} выполнен")
+            else:
+                QMessageBox.warning(self, "Ошибка",
+                                    "Не удалось экспортировать базу данных")
+
     def import_data_csv(self):
         """Импорт данных из CSV"""
         filename, _ = QFileDialog.getOpenFileName(
@@ -1387,7 +1384,7 @@ class MainWindow(QMainWindow):
             )
 
             if reply == QMessageBox.Yes:
-                success = self.db_manager.import_from_json(filename)
+                success = self.db_manager.import_from_csv(filename)
 
                 if success:
                     QMessageBox.information(self, "Успех",
