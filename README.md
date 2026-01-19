@@ -1,7 +1,9 @@
-Установка зависимостей:
+# Установка зависимостей
 pip install -r requirements.txt
+
 python -m spacy download ru_core_news_sm
 
-Запуск программы:
-python main.py
+# Запуск программы
+Для Windows: python main.py
 
+Для Mac: python3 main.py
