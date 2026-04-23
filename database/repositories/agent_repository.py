@@ -2,12 +2,11 @@ import sqlite3
 import uuid
 from typing import Optional, Dict, List
 
+from database.interfaces.agent_repository_interface import IAgentRepository
 
-class AgentRepository:
+
+class AgentRepository(IAgentRepository):
     """CRUD операции для агентов"""
-
-    def __init__(self, db_path):
-        self.db_path = db_path
 
     def _get_connection(self) -> sqlite3.Connection:
         """Создание соединения с БД"""

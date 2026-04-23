@@ -3,16 +3,21 @@ import sqlite3
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional
 
-from database.agent_repository import AgentRepository
-from database.domain_repository import DomainRepository
-from database.fact_repository import FactRepository
-from database.rule_repository import RuleRepository
-from database.statistics_repository import StatisticsRepository
+from database.interfaces.agent_repository_interface import IAgentRepository
+from database.interfaces.domain_repository_interface import IDomainRepository
+from database.interfaces.fact_repository_interface import IFactRepository
+from database.interfaces.rule_repository_interface import IRuleRepository
+from database.interfaces.statistics_repository_interface import IStatisticsRepository
+from database.repositories.agent_repository import AgentRepository
+from database.repositories.domain_repository import DomainRepository
+from database.repositories.fact_repository import FactRepository
+from database.repositories.rule_repository import RuleRepository
+from database.repositories.statistics_repository import StatisticsRepository
 
 
-class DatabaseManager:
+class DatabaseManager(AgentRepository, DomainRepository, FactRepository,
+                      RuleRepository, StatisticsRepository, IStatisticsRepository):
     """Менеджер базы данных SQLite"""
 
     def __init__(self, db_path: str = None):
@@ -24,11 +29,11 @@ class DatabaseManager:
         self.db_path = Path(db_path)
         self._init_database()
 
-        self.agent_repository = AgentRepository(self.db_path)
-        self.domain_repository = DomainRepository(self.db_path)
-        self.rule_repository = RuleRepository(self.db_path)
-        self.fact_repository = FactRepository(self.db_path)
-        self.statistics_repository = StatisticsRepository(self.db_path)
+        self.agent_repository: IAgentRepository = AgentRepository(self.db_path)
+        self.domain_repository: IDomainRepository = DomainRepository(self.db_path)
+        self.rule_repository: IRuleRepository = RuleRepository(self.db_path)
+        self.fact_repository: IFactRepository = FactRepository(self.db_path)
+        self.statistics_repository: IStatisticsRepository = StatisticsRepository(self.db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
         """Создание соединения с БД"""
@@ -283,7 +288,7 @@ class DatabaseManager:
                     # Обработка данных в зависимости от секции
                     if current_section == 'EXPORT_INFO':
                         if row[0] == 'export_date':
-                            # Можно сохранить дату экспорта если нужно
+                            # Можно сохранить дату экспорта
                             continue
 
                     elif current_section == 'DOMAINS' and headers:
@@ -351,86 +356,3 @@ class DatabaseManager:
         except Exception as e:
             print(f"Ошибка импорта из CSV: {e}")
             return False
-
-
-
-    def create_agent(self, name: str, domain_id: str = None, description: str = "") -> Optional[Dict]:
-        return self.agent_repository.create_agent(name, domain_id, description)
-
-    def get_agent(self, agent_id: str) -> Optional[Dict]:
-        return self.agent_repository.get_agent(agent_id)
-
-
-
-    def get_agents_by_domain(self, domain_id: str) -> List[Dict]:
-        return self.agent_repository.get_agents_by_domain(domain_id)
-
-    def get_all_agents(self) -> List[Dict]:
-        return self.agent_repository.get_all_agents()
-
-    def create_domain(self, name: str, description: str = "") -> Optional[Dict]:
-        return self.domain_repository.create_domain(name, description)
-
-    def get_all_domains(self) -> List[Dict]:
-        return self.domain_repository.get_all_domains()
-
-    def get_domain(self, domain_id: str) -> Optional[Dict]:
-        return self.domain_repository.get_domain(domain_id)
-
-    def get_domain_by_name(self, name: str) -> Optional[Dict]:
-        return self.domain_repository.get_domain_by_name(name)
-
-
-
-    def save_fact(self, fact_data: Dict) -> Optional[Dict]:
-        return self.fact_repository.save_fact(fact_data)
-
-    def get_fact(self, fact_id: str) -> Optional[Dict]:
-        return self.fact_repository.get_fact(fact_id)
-
-    def get_facts_by_agent(self, agent_id: str) -> List[Dict]:
-        return self.fact_repository.get_facts_by_agent(agent_id)
-
-    def get_facts_by_variable(self, variable_name: str, agent_id: str = None) -> List[Dict]:
-        return self.fact_repository.get_facts_by_variable(variable_name, agent_id)
-
-    def get_all_facts(self) -> List[Dict]:
-        return self.fact_repository.get_all_facts()
-
-
-
-    def save_rule(self, rule_data: Dict) -> Optional[Dict]:
-        return self.rule_repository.save_rule(rule_data)
-
-    def get_rule(self, rule_id: str) -> Optional[Dict]:
-        return self.rule_repository.get_rule(rule_id)
-
-    def get_rules_by_agent(self, agent_id: str) -> List[Dict]:
-        return self.rule_repository.get_rules_by_agent(agent_id)
-
-    def get_rules_by_domain(self, domain_id: str) -> List[Dict]:
-        return self.rule_repository.get_rules_by_domain(domain_id)
-
-    def get_all_rules(self) -> List[Dict]:
-        return self.rule_repository.get_all_rules()
-
-    def update_rule_priority(self, rule_id: str, priority: int) -> bool:
-        return self.rule_repository.update_rule_priority(rule_id, priority)
-
-    def delete_rule(self, rule_id: str) -> bool:
-        return self.rule_repository.delete_rule(rule_id)
-
-    def find_similar_rules(self, agent_id: str = None, threshold: float = 0.7) -> List[Dict]:
-        return self.rule_repository.find_similar_rules(agent_id, threshold)
-
-    def find_conflicting_rules(self, agent_id: str = None) -> List[Dict]:
-        return self.rule_repository.find_conflicting_rules(agent_id)
-
-    def search_rules(self, query: str, agent_ids: List[str] = None) -> List[Dict]:
-        return self.rule_repository.search_rules(query, agent_ids)
-
-    def get_statistics(self) -> Dict:
-        return self.statistics_repository.get_statistics()
-
-
-    __all__ = ['AgentRepository', 'DomainRepository', 'FactRepository', 'RuleRepository', 'StatisticsRepository']
