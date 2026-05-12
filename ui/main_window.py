@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_manager import DatabaseManager
 # from core.text_processor import TextProcessor
-from core.text_processor_spacy import TextProcessor
+from core.advanced_text_processor import AdvancedTextProcessor
 
 
 class MainWindow(QMainWindow):
@@ -25,7 +25,7 @@ class MainWindow(QMainWindow):
         self.db_manager = DatabaseManager()
 
         # Инициализация текстового процессора
-        self.text_processor = TextProcessor(language='ru')
+        self.text_processor = AdvancedTextProcessor(language='ru')
 
         # Текущие данные
         self.current_agent_id = None

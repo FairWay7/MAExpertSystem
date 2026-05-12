@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 
-class TextProcessor:
+class LightTextProcessor:
     """Обработчик текста для извлечения знаний"""
 
     def __init__(self, language: str = 'ru'):

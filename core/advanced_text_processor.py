@@ -7,7 +7,7 @@ from spacy.matcher import Matcher
 from spacy.language import Language
 
 
-class TextProcessor:
+class AdvancedTextProcessor:
     """Обработчик текста для извлечения знаний с использованием spaCy"""
 
     def __init__(self, language: str = 'ru'):

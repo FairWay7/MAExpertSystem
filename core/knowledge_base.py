@@ -12,104 +12,7 @@ class KnowledgeBase:
         self.agents: Dict[str, Dict] = {}
         self.domains: Dict[str, Dict] = {}
 
-    def add_rule(self, rule: Dict) -> str:
-        """Добавление правила в базу знаний"""
-        rule_id = rule.get('id')
-        if not rule_id:
-            import uuid
-            rule_id = str(uuid.uuid4())
-            rule['id'] = rule_id
 
-        # Проверяем на дубликаты
-        for existing_rule in self.rules.values():
-            if (existing_rule['condition'] == rule['condition'] and
-                    existing_rule['action'] == rule['action']):
-                return existing_rule['id']
-
-        self.rules[rule_id] = rule
-
-        # Обновляем статистику агента и домена
-        if rule.get('agent_id'):
-            agent_id = rule['agent_id']
-            if agent_id in self.agents:
-                if 'rules_count' not in self.agents[agent_id]:
-                    self.agents[agent_id]['rules_count'] = 0
-                self.agents[agent_id]['rules_count'] += 1
-
-        if rule.get('domain_id'):
-            domain_id = rule['domain_id']
-            if domain_id in self.domains:
-                if 'rules_count' not in self.domains[domain_id]:
-                    self.domains[domain_id]['rules_count'] = 0
-                self.domains[domain_id]['rules_count'] += 1
-
-        return rule_id
-
-    def add_fact(self, fact: Dict) -> str:
-        """Добавление факта в базу знаний"""
-        fact_id = fact.get('id')
-        if not fact_id:
-            import uuid
-            fact_id = str(uuid.uuid4())
-            fact['id'] = fact_id
-
-        self.facts[fact_id] = fact
-        self.variables.add(fact['variable_name'])
-
-        # Обновляем статистику
-        if fact.get('agent_id'):
-            agent_id = fact['agent_id']
-            if agent_id in self.agents:
-                if 'facts_count' not in self.agents[agent_id]:
-                    self.agents[agent_id]['facts_count'] = 0
-                self.agents[agent_id]['facts_count'] += 1
-
-        if fact.get('domain_id'):
-            domain_id = fact['domain_id']
-            if domain_id in self.domains:
-                if 'facts_count' not in self.domains[domain_id]:
-                    self.domains[domain_id]['facts_count'] = 0
-                self.domains[domain_id]['facts_count'] += 1
-
-        return fact_id
-
-    def add_agent(self, agent: Dict) -> str:
-        """Добавление агента"""
-        agent_id = agent.get('id')
-        if not agent_id:
-            import uuid
-            agent_id = f"agent_{uuid.uuid4().hex[:8]}"
-            agent['id'] = agent_id
-
-        self.agents[agent_id] = agent
-
-        # Обновляем статистику домена
-        if agent.get('domain_id'):
-            domain_id = agent['domain_id']
-            if domain_id in self.domains:
-                if 'agents_count' not in self.domains[domain_id]:
-                    self.domains[domain_id]['agents_count'] = 0
-                self.domains[domain_id]['agents_count'] += 1
-
-        return agent_id
-
-    def add_domain(self, domain: Dict) -> str:
-        """Добавление предметной области"""
-        domain_id = domain.get('id')
-        if not domain_id:
-            import uuid
-            domain_id = str(uuid.uuid4())
-            domain['id'] = domain_id
-
-        self.domains[domain_id] = domain
-        return domain_id
-
-    def get_rules_by_agent(self, agent_id: str) -> List[Dict]:
-        """Получение правил агента"""
-        return [
-            rule for rule in self.rules.values()
-            if rule.get('agent_id') == agent_id
-        ]
 
     def get_facts_by_agent(self, agent_id: str) -> List[Dict]:
         """Получение фактов агента"""
@@ -223,13 +126,3 @@ class KnowledgeBase:
             return 'same_action'
         else:
             return 'partial'
-
-    def get_statistics(self) -> Dict:
-        """Получение статистики"""
-        return {
-            'rules': len(self.rules),
-            'facts': len(self.facts),
-            'variables': len(self.variables),
-            'agents': len(self.agents),
-            'domains': len(self.domains)
-        }
