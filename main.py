@@ -2,10 +2,8 @@ import sys
 import os
 import warnings
 
-# Подавляем предупреждения
 warnings.filterwarnings('ignore')
 
-# Добавляем путь к модулям
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -56,7 +54,7 @@ def main():
         from ui.main_window import MainWindow
 
         app = QApplication(sys.argv)
-        app.setStyle('Fusion')  # Современный стиль
+        app.setStyle('Fusion')
 
         window = MainWindow()
         window.show()

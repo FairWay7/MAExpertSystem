@@ -125,234 +125,206 @@ class DatabaseManager(AgentRepository, DomainRepository, FactRepository,
 
     # Экспорт/импорт
 
-    def export_to_json(self, output_file: str) -> bool:
-        """Экспорт всей БД в JSON"""
+    def export_to_json(self, filename: str) -> bool:
+        """Экспорт данных в JSON"""
         try:
             data = {
-                'export_date': datetime.now().isoformat(),
                 'domains': self.get_all_domains(),
                 'agents': self.get_all_agents(),
                 'rules': self.get_all_rules(),
-                'facts': self.get_all_facts()
+                'facts': self.get_all_facts(),
+                'export_date': datetime.now().isoformat()
             }
 
-            with open(output_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
-            print(f"База данных экспортирована в {output_file}")
             return True
-
         except Exception as e:
-            print(f"Ошибка экспорта: {e}")
+            print(f"Ошибка экспорта в JSON: {e}")
             return False
 
-    def import_from_json(self, input_file: str) -> bool:
-        """Импорт БД из JSON"""
+    def import_from_json(self, filename: str) -> bool:
+        """Импорт данных из JSON с проверкой существующих записей"""
         try:
-            with open(input_file, 'r', encoding='utf-8') as f:
+            with open(filename, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
-            # Импортируем домены
-            for domain_data in data.get('domains', []):
-                self.create_domain(
-                    name=domain_data['name'],
-                    description=domain_data.get('description', '')
-                )
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
 
-            # Импортируем агентов
-            for agent_data in data.get('agents', []):
-                self.create_agent(
-                    name=agent_data['name'],
-                    domain_id=agent_data.get('domain_id'),
-                    description=agent_data.get('description', '')
-                )
+                # Импортируем области (только новые)
+                for domain in data.get('domains', []):
+                    # Проверяем, существует ли уже такая область
+                    existing = self.get_domain_by_name(domain.get('name'))
+                    if existing:
+                        print(f"Область '{domain.get('name')}' уже существует, пропускаем")
+                        continue
 
-            # Импортируем правила
-            for rule_data in data.get('rules', []):
-                self.save_rule(rule_data)
+                    cursor.execute('''
+                        INSERT INTO domains (id, name, description, created_at)
+                        VALUES (?, ?, ?, ?)
+                    ''', (
+                        domain.get('id', str(uuid.uuid4())),
+                        domain.get('name'),
+                        domain.get('description'),
+                        domain.get('created_at', datetime.now().isoformat())
+                    ))
 
-            # Импортируем факты
-            for fact_data in data.get('facts', []):
-                self.save_fact(fact_data)
+                # Импортируем агентов (только новых)
+                for agent in data.get('agents', []):
+                    # Получаем ID домена
+                    domain_id = agent.get('domain_id')
+                    if domain_id:
+                        domain = self.get_domain(domain_id)
+                        if not domain:
+                            # Пробуем найти домен по имени
+                            domain = self.get_domain_by_name(agent.get('domain_name', 'Общая предметная область'))
+                            if domain:
+                                domain_id = domain['id']
+                            else:
+                                # Создаем домен по умолчанию
+                                default_domain = self.create_domain(
+                                    name="Общая предметная область",
+                                    description="Автоматически созданный домен для импорта"
+                                )
+                                if default_domain:
+                                    domain_id = default_domain['id']
+                                else:
+                                    domain_id = None
 
-            print(f"База данных импортирована из {input_file}")
+                    # Проверяем, существует ли уже такой агент
+                    existing = self.get_agent_by_name(agent.get('name'), domain_id)
+                    if existing:
+                        print(f"Агент '{agent.get('name')}' уже существует, пропускаем")
+                        continue
+
+                    cursor.execute('''
+                        INSERT INTO agents (id, name, domain_id, description, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        agent.get('id', str(uuid.uuid4())),
+                        agent.get('name'),
+                        domain_id,
+                        agent.get('description'),
+                        agent.get('created_at', datetime.now().isoformat())
+                    ))
+
+                # Получаем ID агентов для привязки правил
+                agent_map = {}
+                for agent in data.get('agents', []):
+                    # Находим домен
+                    domain_id = agent.get('domain_id')
+                    if domain_id:
+                        domain = self.get_domain(domain_id)
+                        if not domain:
+                            domain = self.get_domain_by_name('Общая предметная область')
+                            if domain:
+                                domain_id = domain['id']
+
+                    existing = self.get_agent_by_name(agent.get('name'), domain_id)
+                    if existing:
+                        agent_map[agent.get('id')] = existing['id']
+                    else:
+                        # Создаем агента из данных
+                        new_agent = self.create_agent(
+                            name=agent.get('name'),
+                            domain_id=domain_id,
+                            description=agent.get('description')
+                        )
+                        if new_agent:
+                            agent_map[agent.get('id')] = new_agent['id']
+
+                # Импортируем правила
+                for rule in data.get('rules', []):
+                    agent_id = rule.get('agent_id')
+                    # Преобразуем старый ID агента в новый
+                    if agent_id and agent_id in agent_map:
+                        agent_id = agent_map[agent_id]
+                    else:
+                        agent_id = None
+
+                    # Проверяем, существует ли уже такое правило (по уникальности условия и действия)
+                    cursor.execute('''
+                        SELECT id FROM rules 
+                        WHERE condition = ? AND action = ? AND agent_id = ?
+                    ''', (rule.get('condition', ''), rule.get('action', ''), agent_id))
+
+                    existing = cursor.fetchone()
+                    if existing:
+                        print(f"Правило '{rule.get('name', '')}' уже существует, пропускаем")
+                        continue
+
+                    cursor.execute('''
+                        INSERT INTO rules 
+                        (id, name, condition, action, rule_type, priority, agent_id, source_file, author, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        rule.get('id', str(uuid.uuid4())),
+                        rule.get('name', ''),
+                        rule.get('condition', ''),
+                        rule.get('action', ''),
+                        rule.get('rule_type', 'conditional'),
+                        rule.get('priority', 1),
+                        agent_id,
+                        rule.get('source_file', ''),
+                        rule.get('author', ''),
+                        rule.get('created_at', datetime.now().isoformat())
+                    ))
+
+                # Импортируем факты
+                for fact in data.get('facts', []):
+                    agent_id = fact.get('agent_id')
+                    if agent_id and agent_id in agent_map:
+                        agent_id = agent_map[agent_id]
+                    else:
+                        agent_id = None
+
+                    # Проверяем, существует ли уже такой факт
+                    cursor.execute('''
+                        SELECT id FROM facts 
+                        WHERE variable_name = ? AND agent_id = ?
+                    ''', (fact.get('variable_name'), agent_id))
+
+                    existing = cursor.fetchone()
+                    if existing:
+                        print(f"Факт '{fact.get('variable_name')}' уже существует, пропускаем")
+                        continue
+
+                    cursor.execute('''
+                        INSERT INTO facts 
+                        (id, variable_name, value, confidence, agent_id, source_file, author, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        fact.get('id', str(uuid.uuid4())),
+                        fact.get('variable_name'),
+                        fact.get('value', ''),
+                        fact.get('confidence', 1.0),
+                        agent_id,
+                        fact.get('source_file', ''),
+                        fact.get('author', ''),
+                        fact.get('created_at', datetime.now().isoformat())
+                    ))
+
             return True
-
         except Exception as e:
-            print(f"Ошибка импорта: {e}")
+            print(f"Ошибка импорта из JSON: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
-    def export_to_csv(self, output_file: str) -> bool:
-        """Экспорт всей БД в CSV"""
+    def export_to_csv(self, filename: str) -> bool:
+        """Экспорт данных в CSV"""
         try:
-            # Получаем данные
-            data = {
-                'export_date': datetime.now().isoformat(),
-                'domains': self.get_all_domains(),
-                'agents': self.get_all_agents(),
-                'rules': self.get_all_rules(),
-                'facts': self.get_all_facts()
-            }
+            rules = self.get_all_rules()
 
-            with open(output_file, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.writer(f)
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                if rules:
+                    writer = csv.DictWriter(f, fieldnames=rules[0].keys())
+                    writer.writeheader()
+                    writer.writerows(rules)
 
-                # Записываем дату экспорта
-                writer.writerow(['[EXPORT_INFO]'])
-                writer.writerow(['export_date', data['export_date']])
-                writer.writerow([])  # Пустая строка для разделения
-
-                # Записываем домены
-                if data['domains']:
-                    writer.writerow(['[DOMAINS]'])
-                    # Заголовки
-                    if data['domains']:
-                        headers = list(data['domains'][0].keys())
-                        writer.writerow(headers)
-                        # Данные
-                        for domain in data['domains']:
-                            writer.writerow([domain.get(h, '') for h in headers])
-                    writer.writerow([])  # Пустая строка для разделения
-
-                # Записываем агентов
-                if data['agents']:
-                    writer.writerow(['[AGENTS]'])
-                    # Заголовки
-                    if data['agents']:
-                        headers = list(data['agents'][0].keys())
-                        writer.writerow(headers)
-                        # Данные
-                        for agent in data['agents']:
-                            writer.writerow([agent.get(h, '') for h in headers])
-                    writer.writerow([])  # Пустая строка для разделения
-
-                # Записываем правила
-                if data['rules']:
-                    writer.writerow(['[RULES]'])
-                    # Собираем все уникальные заголовки для правил
-                    rule_headers = set()
-                    for rule in data['rules']:
-                        rule_headers.update(rule.keys())
-                    rule_headers = list(rule_headers)
-
-                    writer.writerow(rule_headers)
-                    # Данные
-                    for rule in data['rules']:
-                        writer.writerow([rule.get(h, '') for h in rule_headers])
-                    writer.writerow([])  # Пустая строка для разделения
-
-                # Записываем факты
-                if data['facts']:
-                    writer.writerow(['[FACTS]'])
-                    # Собираем все уникальные заголовки для фактов
-                    fact_headers = set()
-                    for fact in data['facts']:
-                        fact_headers.update(fact.keys())
-                    fact_headers = list(fact_headers)
-
-                    writer.writerow(fact_headers)
-                    # Данные
-                    for fact in data['facts']:
-                        writer.writerow([fact.get(h, '') for h in fact_headers])
-
-            print(f"База данных экспортирована в {output_file}")
             return True
-
         except Exception as e:
             print(f"Ошибка экспорта в CSV: {e}")
-            return False
-
-    def import_from_csv(self, input_file: str) -> bool:
-        """Импорт БД из CSV"""
-        try:
-            with open(input_file, 'r', encoding='utf-8', newline='') as f:
-                reader = csv.reader(f)
-                current_section = None
-                headers = []
-
-                for row in reader:
-                    if not row:  # Пустая строка
-                        continue
-
-                    # Проверяем, является ли строка заголовком секции
-                    if row[0].startswith('[') and row[0].endswith(']'):
-                        current_section = row[0][1:-1]  # Убираем скобки
-                        headers = []
-                        continue
-
-                    # Если это строка заголовков для текущей секции
-                    if current_section and not headers and row[0] != 'export_date':
-                        headers = row
-                        continue
-
-                    # Обработка данных в зависимости от секции
-                    if current_section == 'EXPORT_INFO':
-                        if row[0] == 'export_date':
-                            # Можно сохранить дату экспорта
-                            continue
-
-                    elif current_section == 'DOMAINS' and headers:
-                        if len(row) == len(headers):
-                            domain_data = dict(zip(headers, row))
-                            self.create_domain(
-                                name=domain_data['name'],
-                                description=domain_data.get('description', '')
-                            )
-
-                    elif current_section == 'AGENTS' and headers:
-                        if len(row) == len(headers):
-                            agent_data = dict(zip(headers, row))
-                            domain_id = agent_data.get('domain_id')
-                            if domain_id:
-                                domain_id = int(domain_id) if domain_id.isdigit() else None
-
-                            self.create_agent(
-                                name=agent_data['name'],
-                                domain_id=domain_id,
-                                description=agent_data.get('description', '')
-                            )
-
-                    elif current_section == 'RULES' and headers:
-                        if len(row) == len(headers):
-                            rule_data = {}
-                            for i, header in enumerate(headers):
-                                value = row[i]
-                                if value == '':
-                                    rule_data[header] = None
-                                elif value.lower() in ['true', 'false']:
-                                    rule_data[header] = value.lower() == 'true'
-                                elif value.isdigit():
-                                    rule_data[header] = int(value)
-                                else:
-                                    try:
-                                        rule_data[header] = float(value)
-                                    except ValueError:
-                                        rule_data[header] = value
-
-                            self.save_rule(rule_data)
-
-                    elif current_section == 'FACTS' and headers:
-                        if len(row) == len(headers):
-                            fact_data = {}
-                            for i, header in enumerate(headers):
-                                value = row[i]
-                                if value == '':
-                                    fact_data[header] = None
-                                elif value.lower() in ['true', 'false']:
-                                    fact_data[header] = value.lower() == 'true'
-                                elif value.isdigit():
-                                    fact_data[header] = int(value)
-                                else:
-                                    try:
-                                        fact_data[header] = float(value)
-                                    except ValueError:
-                                        fact_data[header] = value
-
-                            self.save_fact(fact_data)
-
-            print(f"База данных импортирована из {input_file}")
-            return True
-
-        except Exception as e:
-            print(f"Ошибка импорта из CSV: {e}")
             return False

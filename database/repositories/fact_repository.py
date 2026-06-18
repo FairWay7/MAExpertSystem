@@ -8,6 +8,137 @@ from database.interfaces.fact_repository_interface import IFactRepository
 class FactRepository(IFactRepository):
     """CRUD операции для фактов"""
 
+    def get_fact(self, fact_id: str) -> Optional[Dict]:
+        """Получение факта по ID"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT * FROM facts WHERE id = ?', (fact_id,))
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                return dict(row)
+            return None
+
+        except sqlite3.Error as e:
+            print(f"Ошибка получения факта: {e}")
+            return None
+
+    def get_facts_by_agent(self, agent_id: str) -> List[Dict]:
+        """Получение фактов агента"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT * FROM facts 
+                WHERE agent_id = ? 
+                ORDER BY created_at DESC
+            ''', (agent_id,))
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [dict(row) for row in rows]
+
+        except sqlite3.Error as e:
+            print(f"Ошибка получения фактов: {e}")
+            return []
+
+    def get_facts_by_variable(self, variable_name: str, agent_id: str = None) -> List[Dict]:
+        """Получение фактов по имени переменной"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            if agent_id:
+                cursor.execute('''
+                    SELECT * FROM facts 
+                    WHERE variable_name = ? AND agent_id = ?
+                    ORDER BY confidence DESC
+                ''', (variable_name, agent_id))
+            else:
+                cursor.execute('''
+                    SELECT * FROM facts 
+                    WHERE variable_name = ? 
+                    ORDER BY confidence DESC
+                ''', (variable_name,))
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [dict(row) for row in rows]
+
+        except sqlite3.Error as e:
+            print(f"Ошибка получения фактов: {e}")
+            return []
+
+    def get_all_facts(self) -> List[Dict]:
+        """Получение всех фактов"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT * FROM facts ORDER BY created_at DESC')
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [dict(row) for row in rows]
+
+        except sqlite3.Error as e:
+            print(f"Ошибка получения фактов: {e}")
+            return []
+
+    def update_fact(self, fact_id: str, variable_name: str, value: str, confidence: float) -> bool:
+        """Обновление факта"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                UPDATE facts 
+                SET variable_name = ?, value = ?, confidence = ?
+                WHERE id = ?
+            ''', (variable_name, str(value), confidence, fact_id))
+
+            conn.commit()
+            conn.close()
+
+            return cursor.rowcount > 0
+
+        except sqlite3.Error as e:
+            print(f"Ошибка обновления факта: {e}")
+            return False
+
+    def delete_fact(self, fact_id: str) -> bool:
+        """Удаление факта"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Получаем факт чтобы узнать domain_id для обновления счетчика
+            fact = self.get_fact(fact_id)
+
+            cursor.execute('DELETE FROM facts WHERE id = ?', (fact_id,))
+
+            # Обновляем счетчик фактов в домене
+            if fact and fact.get('domain_id'):
+                cursor.execute('''
+                    UPDATE domains 
+                    SET facts_count = facts_count - 1 
+                    WHERE id = ?
+                ''', (fact['domain_id'],))
+
+            conn.commit()
+            conn.close()
+
+            return True
+
+        except sqlite3.Error as e:
+            print(f"Ошибка удаления факта: {e}")
+            return False
+
     def save_fact(self, fact_data: Dict) -> Optional[Dict]:
         """Сохранение факта"""
         # Проверяем обязательные поля

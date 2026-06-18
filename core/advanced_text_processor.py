@@ -2,9 +2,8 @@ import re
 import uuid
 import spacy
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from spacy.matcher import Matcher
-from spacy.language import Language
 
 
 class AdvancedTextProcessor:
